@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: eve-healthcare-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: [PASSWORD]
+      POSTGRES_DB: eve_healthcare
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
