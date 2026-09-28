@@ -9,6 +9,7 @@ from app.models.payment import PaymentStatus
 
 class PaymentCreateRequest(BaseModel):
     booking_id: UUID
+    model_config = ConfigDict(extra="forbid")
 
 
 class PaymentResponse(BaseModel):

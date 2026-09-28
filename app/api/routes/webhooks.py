@@ -24,15 +24,14 @@ def payment_webhook(
     payload: PaymentWebhookRequest,
     db: Session = Depends(get_db),
 ):
-
-    # Only support payment.updated events.
+    # Only payment.updated events are supported.
     if payload.event_type != "payment.updated":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported event type",
         )
-        
-    # Check whether this event has already been processed.
+
+    # Idempotency check for an already processed event.
     existing_event = db.scalar(
         select(WebhookEvent).where(
             WebhookEvent.event_id == payload.event_id
@@ -42,7 +41,7 @@ def payment_webhook(
     if existing_event is not None:
         return WebhookResponse(status="already_processed")
 
-    # Find the payment referenced by the external provider.
+    # Find the payment using the external payment reference.
     payment = db.scalar(
         select(Payment).where(
             Payment.payment_reference == payload.payment_reference
@@ -55,6 +54,47 @@ def payment_webhook(
             detail="Payment not found",
         )
 
+    booking = payment.booking
+
+    # Prevent contradictory state transitions.
+    if booking.status != BookingStatus.PENDING:
+        same_terminal_state = (
+            booking.status == BookingStatus.CONFIRMED
+            and payload.status == PaymentStatus.SUCCESS
+        ) or (
+            booking.status == BookingStatus.FAILED
+            and payload.status == PaymentStatus.FAILED
+        )
+
+        if same_terminal_state:
+            webhook_event = WebhookEvent(
+                event_id=payload.event_id,
+                event_type=payload.event_type,
+                processed=True,
+                payload=payload.model_dump(mode="json"),
+                processed_at=datetime.now(timezone.utc),
+            )
+
+            db.add(webhook_event)
+
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                return WebhookResponse(
+                    status="already_processed"
+                )
+
+            return WebhookResponse(
+                status="already_processed"
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Webhook conflicts with current booking state",
+        )
+
+    # Create exactly one webhook event for this request.
     webhook_event = WebhookEvent(
         event_id=payload.event_id,
         event_type=payload.event_type,
@@ -64,24 +104,24 @@ def payment_webhook(
 
     db.add(webhook_event)
 
-    # Update payment.
+    # Apply payment status.
     payment.status = payload.status
 
-    # Update associated booking.
-    booking = payment.booking
-
+    # Apply corresponding booking status.
     if payload.status == PaymentStatus.SUCCESS:
         booking.status = BookingStatus.CONFIRMED
     else:
         booking.status = BookingStatus.FAILED
 
+    # Mark webhook as successfully processed.
     webhook_event.processed = True
     webhook_event.processed_at = datetime.now(timezone.utc)
 
     try:
         db.commit()
     except IntegrityError:
-        # Another concurrent request may have inserted the same event.
+        # Another request may have processed the same event
+        # concurrently.
         db.rollback()
 
         existing_event = db.scalar(
@@ -91,7 +131,9 @@ def payment_webhook(
         )
 
         if existing_event is not None:
-            return WebhookResponse(status="already_processed")
+            return WebhookResponse(
+                status="already_processed"
+            )
 
         raise
 

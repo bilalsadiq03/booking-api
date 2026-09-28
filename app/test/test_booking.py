@@ -250,3 +250,82 @@ def test_user_only_sees_own_bookings(client, db_session):
 
     assert response.status_code == 200
     assert response.json() == []
+
+def test_booking_rejects_past_appointment(client, db_session):
+    create_user(
+        db_session,
+        email="past@example.com",
+    )
+
+    _, _, centre_test = create_catalog(db_session)
+
+    token = login(
+        client,
+        email="past@example.com",
+    )
+
+    response = client.post(
+        "/bookings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "centre_test_id": str(centre_test.id),
+            "appointment_at": "2020-01-01T10:30:00+05:30",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_booking_rejects_timezone_less_appointment(
+    client,
+    db_session,
+):
+    create_user(
+        db_session,
+        email="timezone@example.com",
+    )
+
+    _, _, centre_test = create_catalog(db_session)
+
+    token = login(
+        client,
+        email="timezone@example.com",
+    )
+
+    response = client.post(
+        "/bookings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "centre_test_id": str(centre_test.id),
+            "appointment_at": "2027-10-10T10:30:00",
+        },
+    )
+
+    assert response.status_code == 422
+
+def test_booking_accepts_future_timezone_aware_appointment(
+    client,
+    db_session,
+):
+    create_user(
+        db_session,
+        email="future@example.com",
+    )
+
+    _, _, centre_test = create_catalog(db_session)
+
+    token = login(
+        client,
+        email="future@example.com",
+    )
+
+    response = client.post(
+        "/bookings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "centre_test_id": str(centre_test.id),
+            "appointment_at": "2027-10-10T10:30:00+05:30",
+        },
+    )
+
+    assert response.status_code == 201

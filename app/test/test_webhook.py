@@ -168,6 +168,21 @@ def test_duplicate_webhook_is_idempotent(
         monkeypatch,
     )
 
+    # Reset state so the webhook performs the first transition.
+    booking = db_session.get(Booking, booking_id)
+    booking.status = BookingStatus.PENDING
+
+    payment = (
+        db_session.query(Payment)
+        .filter(
+            Payment.payment_reference == payment_reference
+        )
+        .one()
+    )
+    payment.status = PaymentStatus.FAILED
+
+    db_session.commit()
+
     payload = {
         "event_id": "evt-duplicate-001",
         "event_type": "payment.updated",
@@ -175,6 +190,7 @@ def test_duplicate_webhook_is_idempotent(
         "status": "SUCCESS",
     }
 
+    # First delivery should process the event.
     first_response = client.post(
         "/payments/webhook/",
         json=payload,
@@ -183,6 +199,7 @@ def test_duplicate_webhook_is_idempotent(
     assert first_response.status_code == 200
     assert first_response.json()["status"] == "processed"
 
+    # Second delivery of the exact same event should be idempotent.
     second_response = client.post(
         "/payments/webhook/",
         json=payload,
@@ -220,3 +237,59 @@ def test_webhook_unsupported_event_type(
     )
 
     assert response.status_code == 400
+
+def test_webhook_rejects_conflicting_terminal_state(
+    client,
+    db_session,
+    monkeypatch,
+):
+    booking_id, token = create_pending_booking(
+        client,
+        db_session,
+        "webhook-conflict@example.com",
+    )
+
+    payment_reference = create_payment(
+        client,
+        db_session,
+        booking_id,
+        token,
+        monkeypatch,
+    )
+
+    # Put the booking into a terminal SUCCESS state.
+    booking = db_session.get(Booking, booking_id)
+    payment = (
+        db_session.query(Payment)
+        .filter(
+            Payment.payment_reference == payment_reference
+        )
+        .one()
+    )
+
+    booking.status = BookingStatus.CONFIRMED
+    payment.status = PaymentStatus.SUCCESS
+    db_session.commit()
+
+    # A FAILED event now conflicts with the current terminal state.
+    response = client.post(
+        "/payments/webhook/",
+        json={
+            "event_id": "evt-conflicting-state-001",
+            "event_type": "payment.updated",
+            "payment_reference": payment_reference,
+            "status": "FAILED",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Webhook conflicts with current booking state"
+    )
+
+    # Verify the original state was not changed.
+    db_session.refresh(booking)
+    db_session.refresh(payment)
+
+    assert booking.status == BookingStatus.CONFIRMED
+    assert payment.status == PaymentStatus.SUCCESS

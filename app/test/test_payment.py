@@ -278,3 +278,44 @@ def test_payment_requires_authentication(client, db_session):
     )
 
     assert response.status_code == 401
+
+def test_payment_rejects_client_supplied_amount(
+    client,
+    db_session,
+    monkeypatch,
+):
+    create_user(
+        db_session,
+        email="amount@example.com",
+    )
+
+    _, _, centre_test = create_catalog(db_session)
+
+    token = login(
+        client,
+        email="amount@example.com",
+    )
+
+    booking_response = client.post(
+        "/bookings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "centre_test_id": str(centre_test.id),
+            "appointment_at": "2027-01-10T10:30:00+05:30",
+        },
+    )
+
+    assert booking_response.status_code == 201
+
+    booking_id = booking_response.json()["id"]
+
+    response = client.post(
+        "/payments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "booking_id": booking_id,
+            "amount": 1,
+        },
+    )
+
+    assert response.status_code == 422
