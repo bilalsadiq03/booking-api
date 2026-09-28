@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     debug: bool = False
     
     database_url: str
+    test_database_url: str
 
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"

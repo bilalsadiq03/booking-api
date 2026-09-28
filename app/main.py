@@ -2,7 +2,9 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.api.routes.auth import router as auth_router
+from app.api.routes.catalog import router as catalog_router
+from app.core.config import settings    
 from app.database.session import get_db
 
 
@@ -10,6 +12,9 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
 )
+
+app.include_router(auth_router)
+app.include_router(catalog_router)
 
 
 @app.get("/")

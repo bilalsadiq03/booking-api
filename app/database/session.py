@@ -8,7 +8,7 @@ engine = create_engine(
     pool_pre_ping=True,
 )
 
-sessionLocal = sessionmaker(
+SessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,
     autoflush=False,
@@ -19,7 +19,7 @@ class Base(DeclarativeBase):
 
     
 def get_db():
-    db = sessionLocal()
+    db = SessionLocal()
     try:
         yield db
     finally:
