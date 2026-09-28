@@ -1,7 +1,8 @@
-from typing import TYPE_CHECKING
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -10,15 +11,15 @@ from sqlalchemy import (
     Numeric,
     func,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
 
 if TYPE_CHECKING:
-    from app.models.booking import Booking
+    from app.models.centre_test import CentreTest
     from app.models.payment import Payment
     from app.models.user import User
-    from app.models.centre_test import CentreTest
 
 
 class BookingStatus(str, Enum):
@@ -31,15 +32,21 @@ class BookingStatus(str, Enum):
 class Booking(Base):
     __tablename__ = "bookings"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False,
         index=True,
     )
 
-    centre_test_id: Mapped[int] = mapped_column(
+    centre_test_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("centre_tests.id"),
         nullable=False,
         index=True,

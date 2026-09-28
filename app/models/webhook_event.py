@@ -1,12 +1,8 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    JSON,
-    String,
-    func,
-)
+from sqlalchemy import Boolean, DateTime, JSON, String, func
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.session import Base
@@ -15,7 +11,11 @@ from app.database.session import Base
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
     event_id: Mapped[str] = mapped_column(
         String(100),

@@ -1,5 +1,8 @@
+import uuid
 from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -11,7 +14,11 @@ if TYPE_CHECKING:
 class DiagnosticTest(Base):
     __tablename__ = "diagnostic_tests"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
     name: Mapped[str] = mapped_column(
         String(150),

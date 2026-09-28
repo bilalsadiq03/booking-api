@@ -1,11 +1,9 @@
-from typing import TYPE_CHECKING
+import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import (
-    ForeignKey,
-    Numeric,
-    UniqueConstraint,
-)
+from sqlalchemy import ForeignKey, Numeric, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -27,15 +25,21 @@ class CentreTest(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
-    centre_id: Mapped[int] = mapped_column(
+    centre_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("diagnostic_centres.id"),
         nullable=False,
         index=True,
     )
 
-    test_id: Mapped[int] = mapped_column(
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("diagnostic_tests.id"),
         nullable=False,
         index=True,
