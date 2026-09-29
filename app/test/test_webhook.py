@@ -293,3 +293,48 @@ def test_webhook_rejects_conflicting_terminal_state(
 
     assert booking.status == BookingStatus.CONFIRMED
     assert payment.status == PaymentStatus.SUCCESS
+
+def test_duplicate_terminal_webhook_state_is_idempotent(
+    client,
+    db_session,
+    monkeypatch,
+):
+    booking_id, token = create_pending_booking(
+        client,
+        db_session,
+        "webhook-terminal@example.com",
+    )
+
+    payment_reference = create_payment(
+        client,
+        db_session,
+        booking_id,
+        token,
+        monkeypatch,
+    )
+
+    booking = db_session.get(Booking, booking_id)
+    payment = (
+        db_session.query(Payment)
+        .filter(
+            Payment.payment_reference == payment_reference
+        )
+        .one()
+    )
+
+    booking.status = BookingStatus.CONFIRMED
+    payment.status = PaymentStatus.SUCCESS
+    db_session.commit()
+
+    response = client.post(
+        "/payments/webhook/",
+        json={
+            "event_id": "evt-terminal-success-001",
+            "event_type": "payment.updated",
+            "payment_reference": payment_reference,
+            "status": "SUCCESS",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "already_processed"

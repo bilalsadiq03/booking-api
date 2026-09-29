@@ -319,3 +319,27 @@ def test_payment_rejects_client_supplied_amount(
     )
 
     assert response.status_code == 422
+
+def test_payment_for_nonexistent_booking(
+    client,
+    db_session,
+):
+    create_user(
+        db_session,
+        email="missing-booking@example.com",
+    )
+
+    token = login(
+        client,
+        email="missing-booking@example.com",
+    )
+
+    response = client.post(
+        "/payments",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "booking_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+
+    assert response.status_code == 404
